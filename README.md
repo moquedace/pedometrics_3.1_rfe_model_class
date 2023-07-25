@@ -7,7 +7,6 @@ Authors: "Fernandes-Filho, Elpídio Inácio; Moquedace, Cássio Marques; Pereira
 ## Loading packages
 ```{r message=FALSE, warning=FALSE}
 pkg <- c("hydroGOF", "caret", "sf", "stringr", "geobr", "readxl", "dplyr", "terra", "parallelly", "parallel", "doParallel", "DescTools", "tidyr")
-
 sapply(pkg, require, character.only = T)
 ```
 
@@ -20,8 +19,8 @@ gc()
 ## Parameterization
 ```{r message=FALSE, warning=FALSE}
 path_raiz <- "C:/R/pedometrics/classification/"
-setwd(path_raiz)
 
+setwd(path_raiz)
 
 # Number of repetitions
 nruns <- 100
@@ -56,7 +55,6 @@ tol_per <- 2
 # Used models (see available models in caret documentation)
 models <- c("rf")
 
-
 # Selecting the name of the target variable to be modeled
 varsy <- read.csv2("./extract_xy/class_yx.csv") %>% 
   names() %>% 
@@ -76,7 +74,6 @@ for (i in seq_along(models)) {
   
   tmodel <- Sys.time()
   
-  
   for (j in seq_along(varsy)) {
     
     # Results folder
@@ -86,7 +83,6 @@ for (i in seq_along(models)) {
     
     # Loading the dataset (table) with samples and covariates values
     dfbase <- read.csv2("./extract_xy/class_yx.csv")
-    
     
     # Creating a dataframe to store performance results
     dfperf <- data.frame(model = integer(nruns),
@@ -112,7 +108,6 @@ for (i in seq_along(models)) {
     
     var <- varsy[j]
     
-    
     # Creating a folder to store individual model results
     if (!dir.exists(paste0(path_results, models[i]))) {
       dir.create(paste0(path_results, models[i]))
@@ -123,10 +118,7 @@ for (i in seq_along(models)) {
       dir.create(paste0(path_results, models[i], "/", var))
     }
     
-    
-    
     path_results <- paste0(path_results, models[i], "/", var, "/")
-    
     
     if (!dir.exists(paste0(path_results, "select"))) {
       dir.create(paste0(path_results, "select"))
@@ -176,12 +168,8 @@ for (i in seq_along(models)) {
       dir.create(paste0(path_results, "img"))
     }
     
-    
-    
     dy <- dfbase %>% dplyr::select({var})
     dx <- dfbase %>% dplyr::select(-{varsy})
-    
-    
     
     dyx_sel <- cbind(dy, dx) %>% 
       filter(!!sym(var) > 0) %>% 
@@ -193,7 +181,6 @@ for (i in seq_along(models)) {
     # Removing predictors with a near zero variance
     dyx_sel <- dyx_sel %>% 
       dplyr::select(-one_of(nearZeroVar(., names = T)))
-    
     
     # Removing predictors by spearman correlation > |0.95|
     mcor <- dyx_sel %>% dplyr::select(-one_of(var)) %>%
@@ -209,9 +196,7 @@ for (i in seq_along(models)) {
       write.csv2(file = paste0(path_results, "select/cor/", var,
                                "_cor", ".csv"), row.names = F)
     
-    
     dyx_sel <- dyx_sel %>% dplyr::select(-one_of(fc))
-    
     
     set.seed(666)
     nseed <- sample(1:100000, nruns)
@@ -220,15 +205,10 @@ for (i in seq_along(models)) {
     lmodel <- list()
     lpredimp <- list()
     
-    
     lrfepred <- list()
     lrferes <- list()
     lconf_matrix_train  <- list()
     lconf_matrix_test <- list()
-    
-    
-    
-    
     
     for (n in 1:nruns) {
       
@@ -236,19 +216,18 @@ for (i in seq_along(models)) {
       
       status_run <- paste(trun, models[i], var, "run", n, "missing", nruns - n)
       
-      
       print(status_run)
       
       set.seed(nseed[n])
       # Splitting the dataset into training set (80%) and testing set (20%)
       vf <- createDataPartition(dyx_sel[, var], p = 0.8, list = F)
       
-      
       train <- dyx_sel[vf,]
+      
       test <- dyx_sel[-vf,]
       
-      
       registerDoParallel(cl)
+      
       set.seed(nseed[n])
       
       # Recursive Feature Elimination
@@ -258,6 +237,7 @@ for (i in seq_along(models)) {
                              verbose = F)
       
       set.seed(nseed[n])
+      
       model_ctrl <- trainControl(method = "repeatedcv", 
                                  number = fold_rfe,
                                  repeats = rep_rfe,
@@ -266,6 +246,7 @@ for (i in seq_along(models)) {
       formu <- as.formula(paste(var, "~ ."))
       
       set.seed(nseed[n])
+      
       rfe_fit <- rfe(form = formu,
                      data = train,
                      sizes = size_rfe,
@@ -278,10 +259,11 @@ for (i in seq_along(models)) {
                                        FALSE, TRUE))
       
       print(rfe_fit)
+      
       print("-----------------------------------------------------------------")
+      
       status_rfe <- paste("RFE run", models[i], var, n, round(Sys.time() - trun, 2),
                           units(Sys.time() - trun))
-      
       
       print(status_rfe)
       
@@ -294,11 +276,12 @@ for (i in seq_along(models)) {
                                        maximize = ifelse(
                                          metric_otm %in% c("RMSE", "MAE"),
                                          FALSE, TRUE))
+      
       lrfepred[[n]] <- rfe_fit$optVariables[1:pick]
+      
       print(paste("select", pick))
+      
       print("-----------------------------------------------------------------")
-      
-      
       
       # Unique names for categorical variables
       if (grepl(x = paste(lrfepred[[n]], collapse = " "),
@@ -327,7 +310,6 @@ for (i in seq_along(models)) {
         
       }
       
-      
       write.csv2(data.frame(lrferes[[n]]),
                  file = paste0(path_results, "select/rfe/metric/", var,
                                "/RFE_", "ACCURACY_KAPPA_", n, ".csv"), row.names = F)
@@ -339,7 +321,6 @@ for (i in seq_along(models)) {
       # Taking variables chosen by RFE for model training
       dfselrfe <- train %>% dplyr::select({var}, one_of(lrfepred[[n]]))
       
-      
       # Model training
       set.seed(nseed[n])
       model_ctrl <- trainControl(method = "repeatedcv", 
@@ -348,8 +329,11 @@ for (i in seq_along(models)) {
                                  savePredictions = T)
       
       formu <- as.formula(paste(var, "~ ."))
+      
       registerDoParallel(cl)
+      
       set.seed(nseed[n])
+      
       model_fit <- train(form = formu,
                          data = dfselrfe,
                          metric = metric_otm,
@@ -366,13 +350,15 @@ for (i in seq_along(models)) {
                            metric_otm %in% c("RMSE", "MAE"), FALSE, TRUE))
       
       print(model_fit)
+      
       print("-----------------------------------------------------------------")
+      
       status_model <- paste(model_fit[["modelInfo"]][["label"]], var, n,
                             round(Sys.time() - trun, 2),
                             units(Sys.time() - trun))
       
-      
       print(status_model)
+      
       print("-----------------------------------------------------------------")
       
       lmodel[[n]] <- model_fit
@@ -383,13 +369,10 @@ for (i in seq_along(models)) {
       pr_test <- predict(lmodel[[n]], test) %>% 
         postResample(pred =  ., obs = test[, var])
       
-      
-      
       predict_train <- predict(lmodel[[n]], train)
       
       lconf_matrix_train[[n]] <- confusionMatrix(table(predict_train, train[, var]),
                                                  mode = "everything")
-      
       
       predict_test <- predict(lmodel[[n]], test)
       
@@ -399,15 +382,12 @@ for (i in seq_along(models)) {
       # Calculating importance of predictors
       pred_imp <- varImp(lmodel[[n]])
       
-      
-      
       lpredimp[[n]] <- data.frame(pred_imp[1]) %>% 
         mutate(predictor = row.names(.)) %>%
         gather(key = "class",
                value = "importance", -predictor) %>% 
         relocate(class, predictor) %>% 
         mutate(class = gsub("importance.", "", class))
-      
       
       # Plotting predictor importance
       gg <-  ggplot(lpredimp[[n]], aes(y = reorder(predictor, importance), x = importance)) +
@@ -416,11 +396,9 @@ for (i in seq_along(models)) {
       
       print(gg)
       
-      
       write.csv2(lpredimp[[n]],
                  paste0(path_results, "performance/imp_pred/", var, "/",
                         "imp_pred_", n, ".csv"), row.names = F)
-      
       
       # Filling the dataframe with the performances of models
       dfperf$model[n] <- lmodel[[n]][["modelInfo"]][["label"]]
@@ -444,8 +422,6 @@ for (i in seq_along(models)) {
       dfperf$balanced_accuracy_test[n] <- mean(lconf_matrix_test[[n]][["byClass"]][,"Balanced Accuracy"], na.rm = T)
       dfperf$f1_test[n] <- mean(lconf_matrix_test[[n]][["byClass"]][,"F1"], na.rm = T)
       
-      
-      
       write.csv2(dfperf, row.names = F, paste0(
         path_results, "performance/csv/", var, "_performance", ".csv"))
       
@@ -454,44 +430,40 @@ for (i in seq_along(models)) {
       gc()
     }
     
-    
     # save select rfe -------------------------------------------------
     n_obs <- sapply(lrfepred, length)
+    
     seq.max <- seq_len(max(n_obs))
     
     rfe_pred_full <- as.data.frame(sapply(lrfepred, "[", i = seq.max))
-    
     
     write.csv2(rfe_pred_full, row.names = F,
                file = paste0(
                  path_results, "select/rfe/select/", var, "/select_TOTAL",
                  ".csv"))
     
-    
-    
     # save geral rfe ----------------------------------------------- 
     n_rep <- rep(1:nruns, times = sapply(lrferes, nrow))
+    
     rfe_res_full <- do.call(rbind, lrferes)
     
     rfe_res_full <- rfe_res_full %>% 
       mutate(rep = n_rep) %>% 
       relocate(rep)
     
-    
     write.csv2(rfe_res_full, row.names = F,
                file = paste0(
                  path_results, "select/rfe/metric/", var, "/ACCURACY_KAPPA_TOTAL",
                  ".csv"))
     
-    
     # save predict importance -------------------------------------
     n_rep <- rep(1:nruns, times = sapply(lpredimp, nrow))
+    
     pred_imp_full <- do.call(rbind, lpredimp)
     
     pred_imp_full <- pred_imp_full %>% 
       mutate(rep = n_rep) %>% 
       relocate(rep)
-    
     
     write.csv2(pred_imp_full, row.names = F,
                file = paste0(
@@ -502,9 +474,7 @@ for (i in seq_along(models)) {
                         round(Sys.time() - tvar, 2),
                         units(Sys.time() - tvar))
     
-   
     print(status_var)
-    
     
   }
   
@@ -512,14 +482,10 @@ for (i in seq_along(models)) {
                              round(Sys.time() - tmodel, 2),
                              units(Sys.time() - tmodel))
   
-  
   print(status_model_full)
   
 }
 ```
-
-
-
 
 <p align="center">
 <img src="imp_class.jpg" width="600">
