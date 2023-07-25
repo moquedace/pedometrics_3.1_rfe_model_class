@@ -1,5 +1,5 @@
 ---
-title: "Modelling - Classification"
+Title: "Modelling - Classification"
 Authors: "Fernandes-Filho, Elpídio Inácio; Moquedace, Cássio Marques; Pereira, Luís Flávio; Veloso, Gustavo Vieira; Carvalho Junior, Waldir"
 ---
 
